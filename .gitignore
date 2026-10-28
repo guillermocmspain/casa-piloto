@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.astro/
+inspection/
+.env
+.env.*
+!.env.example
+*.log
+public/media/frames/
+public/media/recorrido.mp4

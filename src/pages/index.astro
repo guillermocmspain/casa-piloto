@@ -1,0 +1,71 @@
+---
+import '../styles/global.css';
+const base = import.meta.env.BASE_URL;
+const media = `${base}media/`;
+const rooms = [
+  { id: 'salon', number: '01', name: 'Salón', title: 'La vida empieza\naquí.', description: 'Un salón para bajar el ritmo. Luz natural, una zona de estar acogedora y espacio para compartir la mesa sin renunciar a tu propio rincón.', image: 'salon', facts: [['28 m²', 'Salón y comedor'], ['Exterior', 'Luz natural'], ['2 ambientes', 'Estar y comedor']], detail: 'Dos ambientes, una misma sensación de hogar.', text: 'Un espacio versátil para recibir, leer o disfrutar de una sobremesa. La zona de comedor y el estar conviven con una distribución abierta y fácil de adaptar.' },
+  { id: 'bano', number: '02', name: 'Baño', title: 'Tu pausa\nde cada día.', description: 'Un espacio práctico y luminoso que convierte las rutinas en pequeños momentos de calma. Ventilación natural y todo a mano.', image: 'bano', facts: [['6 m²', 'Superficie'], ['Ventana', 'Ventilación natural'], ['Almacenaje', 'Bajo lavabo']], detail: 'Funcionalidad que se nota cada mañana.', text: 'La ventana aporta luz y ventilación. El mueble de lavabo ofrece espacio para mantener lo cotidiano organizado y liberar la encimera.' },
+  { id: 'cocina', number: '03', name: 'Cocina', title: 'Las mejores historias\nse cocinan en casa.', description: 'Una cocina independiente, con luz y espacio para el día a día. Desde el primer café hasta esa receta que siempre acaba reuniendo a todos.', image: 'cocina', facts: [['14 m²', 'Superficie'], ['Equipada', 'Electrodomésticos'], ['Zona office', 'Mesa de diario']], detail: 'El punto de encuentro de todos los días.', text: 'Encimera de trabajo, armarios y una zona donde desayunar sin prisas. Una cocina independiente pensada para disfrutarla, no solo para cocinar.' },
+];
+---
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#243b32" />
+    <meta name="description" content="Entra en Casa Piloto: un recorrido interactivo por el salón, el baño y la cocina. Una experiencia inmobiliaria de demostración." />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" href={`${base}favicon.svg`} type="image/svg+xml" />
+    <link rel="preload" as="image" href={`${media}portada.webp`} />
+    <title>Casa Piloto · Una casa para imaginar tu vida</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#detalles">Saltar recorrido y ver información</a>
+    <header class="header">
+      <a href="#recorrido" class="brand" aria-label="Casa Piloto, inicio"><svg viewBox="0 0 32 36" fill="none" aria-hidden="true"><path d="M2 34V13L16 2l14 11v21H2Z M11 34V20h10v14" stroke="currentColor" stroke-width="1.5" /></svg><span>casa piloto<small>ESPACIOS PARA VIVIR</small></span></a>
+      <nav aria-label="Navegación principal"><a href="#recorrido">El recorrido</a><a href="#detalles">La vivienda</a><button class="button button-small" data-visit>Solicitar visita <span aria-hidden="true">↗</span></button></nav>
+    </header>
+    <main>
+      <section class="tour" id="recorrido" aria-label="Recorrido por la vivienda">
+        <div class="stage">
+          <img class="stage-poster" src={`${media}portada.webp`} alt="Vista del salón y comedor de la vivienda" width="1600" height="900" fetchpriority="high" />
+          <canvas id="tour-canvas" aria-hidden="true"></canvas>
+          <div class="shade" aria-hidden="true"></div>
+          <article class="panel intro" id="inicio" data-panel="0">
+            <div class="panel-content">
+              <p class="eyebrow"><span class="live-dot"></span> UNA NUEVA FORMA DE ENCONTRAR TU HOGAR</p>
+              <h1>No imagines la casa.<br /><em>Entra en ella.</em></h1>
+              <p class="lead">Hay lugares que se entienden al recorrerlos.<br />Descubre el tuyo, estancia a estancia.</p>
+              <div class="intro-actions"><a class="button button-light" href="#salon" data-jump="0.24">Empezar el recorrido <span aria-hidden="true">↓</span></a><button class="video-button" data-video><span class="play-icon" aria-hidden="true">▷</span> Ver vídeo completo</button></div>
+              <p class="intro-meta">VIVIENDA EXTERIOR <span>·</span> 112 M² <span>·</span> 3 DORMITORIOS</p>
+            </div>
+            <div class="intro-side"><span>Una casa.<br />Muchas posibilidades.</span><span class="side-line"></span><span>REF. CP—001</span></div>
+          </article>
+          {rooms.map((room, i) => <article class="panel room-panel" id={room.id} data-panel={i+1}>
+            <img class="static-room" src={`${media}${room.image}.webp`} alt={`Vista del ${room.name.toLowerCase()}`} width="1600" height="900" loading="lazy" />
+            <div class="panel-content"><p class="eyebrow">EL RECORRIDO <span class="eyebrow-line"></span> {room.number} / 03</p><p class="room-label">{room.name}</p><h2>{room.title.split('\n').map((line, index) => <>{index > 0 && <br />}{index === 1 ? <em>{line}</em> : line}</>)}</h2><p class="room-copy">{room.description}</p><dl class="room-facts">{room.facts.map(([value,label]) => <div><dt>{label}</dt><dd>{value}</dd></div>)}</dl><p class="sample-note">Características orientativas de esta vivienda de ejemplo.</p></div>
+          </article>)}
+          <div class="tour-bottom">
+            <span class="scroll-caption"><span aria-hidden="true">↓</span> DESLIZA PARA DESCUBRIR</span>
+            <nav class="stop-nav" aria-label="Estancias del recorrido"><a href="#salon" data-jump="0.24"><span>01</span> Salón</a><a href="#bano" data-jump="0.54"><span>02</span> Baño</a><a href="#cocina" data-jump="0.90"><span>03</span> Cocina</a></nav>
+            <a href="#detalles" class="skip-tour">Ver ficha <span aria-hidden="true">↗</span></a>
+          </div>
+          <div class="progress-track" aria-hidden="true"><div id="tour-progress"></div></div>
+        </div>
+      </section>
+      <section class="overview section-pad" id="detalles">
+        <div class="overview-top"><p class="eyebrow green">LA VIVIENDA · REF. CP—001</p><span class="demo-pill">PROYECTO DE DEMOSTRACIÓN</span></div>
+        <div class="overview-heading"><h2>Espacio para vivir.<br /><em>Motivos para quedarse.</em></h2><div class="price"><span>PRECIO DE EJEMPLO</span><strong>285.000 €</strong><p>Una propuesta para imaginar tu próximo hogar.</p></div></div>
+        <dl class="property-facts"><div><dd>112 <small>m²</small></dd><dt>Superficie construida</dt></div><div><dd>3</dd><dt>Dormitorios</dt></div><div><dd>2</dd><dt>Baños</dt></div><div><dd>Exterior</dd><dt>Luz y ventilación natural</dt></div></dl>
+      </section>
+      <section class="spaces section-pad" aria-labelledby="spaces-title"><div class="section-heading"><div><p class="eyebrow green">CADA ESTANCIA TIENE SU HISTORIA</p><h2 id="spaces-title">Mírala más de cerca.</h2></div><button class="text-link" data-video>Reproducir el house tour <span aria-hidden="true">↗</span></button></div><div class="room-grid">{rooms.map((room,i) => <article class="room-card"><a href={`#${room.id}`} data-jump={[0.24,0.54,0.90][i]} class="room-image-link" aria-label={`Volver a la parada: ${room.name}`}><img src={`${media}${room.image}.webp`} alt={`Fotograma real del ${room.name.toLowerCase()} de la vivienda`} width="1600" height="900" loading="lazy" /><span class="image-number">{room.number} / {room.name}</span><span class="image-arrow" aria-hidden="true">↗</span></a><h3>{room.detail}</h3><p>{room.text}</p></article>)}</div></section>
+      <section class="details-section section-pad"><div><p class="eyebrow green">LOS DETALLES TAMBIÉN CUENTAN</p><h2>Lo que hace<br /><em>que encaje contigo.</em></h2><p class="details-intro">Un vistazo a las características de esta propuesta. Así puedes valorar la casa más allá de la primera impresión.</p><p class="data-disclaimer">El vídeo muestra una vivienda real. El precio, las superficies y las características comerciales son datos ficticios para esta demostración; no constituyen un anuncio de venta.</p></div><dl class="spec-list"><div><dt>Tipo de vivienda</dt><dd>Piso familiar</dd></div><div><dt>Distribución</dt><dd>3 dormitorios · 2 baños</dd></div><div><dt>Zona de día</dt><dd>Salón-comedor independiente</dd></div><div><dt>Cocina</dt><dd>Equipada, con zona office</dd></div><div><dt>Calefacción</dt><dd>Radiadores</dd></div><div><dt>Ubicación</dt><dd>Zona residencial · Ejemplo</dd></div><div><dt>Certificado energético</dt><dd>Pendiente de verificar</dd></div></dl></section>
+      <section class="contact section-pad" id="contacto"><div><p class="eyebrow">EL SIGUIENTE PASO ES TUYO</p><h2>Ahora imagina<br /><em>tu vida aquí.</em></h2><p>Ya has recorrido la casa. La próxima vez,<br />podrías cruzar la puerta.</p></div><div class="contact-action"><button class="button button-light" data-visit>Quiero conocerla <span aria-hidden="true">↗</span></button><span>Sin prisas. A tu ritmo.</span></div></section>
+    </main>
+    <footer><a class="footer-brand" href="#recorrido">casa piloto</a><p>Una experiencia inmobiliaria de demostración.</p><a href="#recorrido">Volver al inicio ↑</a></footer>
+    <dialog id="video-dialog" class="video-dialog" aria-labelledby="video-title"><div class="dialog-header"><h2 id="video-title">El recorrido completo</h2><button data-close aria-label="Cerrar vídeo">✕</button></div><video controls playsinline preload="none" poster={`${media}portada.webp`} data-src={`${media}recorrido-hd.mp4`}></video><p>Salón, baño y cocina · Vídeo original adaptado para web, sin audio.</p></dialog>
+    <dialog id="visit-dialog" aria-labelledby="visit-title"><div class="dialog-header"><span class="eyebrow green">CASA PILOTO</span><button data-close aria-label="Cerrar solicitud">✕</button></div><h2 id="visit-title">Ven a conocerla.</h2><p>Elige cuándo te vendría bien. Este formulario es una demostración: no envía solicitudes ni reserva una visita real.</p><form id="visit-form"><label for="visit-date">Día de la visita</label><input id="visit-date" type="date" required /><label for="visit-time">¿Cuándo te viene mejor?</label><select id="visit-time"><option>Por la mañana · 10:00–13:00</option><option>Por la tarde · 16:00–19:00</option></select><button type="submit" class="button">Simular solicitud <span aria-hidden="true">↗</span></button><p id="visit-result" role="status" hidden></p></form></dialog>
+    <script>import '../scripts/tour';</script>
+  </body>
+</html>
