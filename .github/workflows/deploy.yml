@@ -25,8 +25,8 @@ jobs:
           cache: npm
       - name: Instalar dependencias
         run: npm ci
-      - name: Comprobar movimiento
-        run: node --test scripts/scroll-motion.test.mjs
+      - name: Comprobar tipos y carga del recorrido
+        run: npm run check && npm test
       - name: Configurar Pages
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
       - name: Compilar web

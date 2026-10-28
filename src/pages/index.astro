@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import tourMedia from '../data/tour-media.json';
 const base = import.meta.env.BASE_URL;
 const media = `${base}media/`;
 const rooms = [
@@ -30,7 +31,7 @@ const rooms = [
       <section class="tour" id="recorrido" aria-label="Recorrido por la vivienda">
         <div class="stage">
           <img class="stage-poster" src={`${media}portada.webp`} alt="Vista del salón y comedor de la vivienda" width="1600" height="900" fetchpriority="high" />
-          <canvas id="tour-canvas" aria-hidden="true"></canvas>
+          <video id="tour-film" class="tour-film" muted playsinline preload="none" disablepictureinpicture disableRemotePlayback tabindex="-1" aria-hidden="true" data-desktop={`${media}${tourMedia.desktop.file}`} data-mobile={`${media}${tourMedia.mobile.file}`} data-desktop-bytes={tourMedia.desktop.bytes} data-mobile-bytes={tourMedia.mobile.bytes}></video>
           <div class="shade" aria-hidden="true"></div>
           <article class="panel intro" id="inicio" data-panel="0">
             <div class="panel-content">
@@ -64,7 +65,8 @@ const rooms = [
       <section class="contact section-pad" id="contacto"><div><p class="eyebrow">EL SIGUIENTE PASO ES TUYO</p><h2>Ahora imagina<br /><em>tu vida aquí.</em></h2><p>Ya has recorrido la casa. La próxima vez,<br />podrías cruzar la puerta.</p></div><div class="contact-action"><button class="button button-light" data-visit>Quiero conocerla <span aria-hidden="true">↗</span></button><span>Sin prisas. A tu ritmo.</span></div></section>
     </main>
     <footer><a class="footer-brand" href="#recorrido">casa piloto</a><p>Una experiencia inmobiliaria de demostración.</p><a href="#recorrido">Volver al inicio ↑</a></footer>
-    <dialog id="video-dialog" class="video-dialog" aria-labelledby="video-title"><div class="dialog-header"><h2 id="video-title">El recorrido completo</h2><button data-close aria-label="Cerrar vídeo">✕</button></div><video controls playsinline preload="none" poster={`${media}portada.webp`} data-src={`${media}recorrido-hd.mp4`}></video><p>Salón, baño y cocina · Vídeo original adaptado para web, sin audio.</p></dialog>
+    <dialog id="tour-loader" class="tour-loader" aria-labelledby="loader-title" aria-describedby="loader-message"><div class="loader-inner"><span class="loader-brand">casa piloto</span><svg class="loader-house" viewBox="0 0 64 72" fill="none" aria-hidden="true"><path d="M8 64V27L32 8l24 19v37H8Zm16 0V40h16v24" stroke="currentColor" stroke-width="1.2"/></svg><p class="eyebrow green">BIENVENIDO A CASA</p><h2 id="loader-title">Un momento.<br /><em>Estamos abriendo la puerta.</em></h2><div class="loader-progress-label"><span id="loader-message" role="status">Preparando el recorrido…</span><span id="loader-percent" aria-hidden="true">0%</span></div><progress id="loader-progress" max="100" value="0" aria-label="Carga del recorrido"></progress><p class="loader-detail">Preparamos la visita completa para que puedas recorrerla sin interrupciones.</p><button id="loader-retry" class="button" hidden>Volver a intentar <span aria-hidden="true">↻</span></button><button id="loader-enter" class="button" hidden>Entrar en la casa <span aria-hidden="true">↗</span></button><button id="loader-skip" class="loader-skip">Ver la vivienda sin recorrido <span aria-hidden="true">↗</span></button></div></dialog>
+    <dialog id="video-dialog" class="video-dialog" aria-labelledby="video-title"><div class="dialog-header"><h2 id="video-title">El recorrido completo</h2><button data-close aria-label="Cerrar vídeo">✕</button></div><video controls playsinline preload="none" poster={`${media}portada.webp`} data-src={`${media}${tourMedia.desktop.file}`}></video><p>Salón, baño y cocina · Vídeo original adaptado para web, sin audio.</p></dialog>
     <dialog id="visit-dialog" aria-labelledby="visit-title"><div class="dialog-header"><span class="eyebrow green">CASA PILOTO</span><button data-close aria-label="Cerrar solicitud">✕</button></div><h2 id="visit-title">Ven a conocerla.</h2><p>Elige cuándo te vendría bien. Este formulario es una demostración: no envía solicitudes ni reserva una visita real.</p><form id="visit-form"><label for="visit-date">Día de la visita</label><input id="visit-date" type="date" required /><label for="visit-time">¿Cuándo te viene mejor?</label><select id="visit-time"><option>Por la mañana · 10:00–13:00</option><option>Por la tarde · 16:00–19:00</option></select><button type="submit" class="button">Simular solicitud <span aria-hidden="true">↗</span></button><p id="visit-result" role="status" hidden></p></form></dialog>
     <script>import '../scripts/tour';</script>
   </body>

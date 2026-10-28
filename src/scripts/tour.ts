@@ -1,41 +1,44 @@
 import { timeAt, follow, panelAt } from "./scroll-motion.mjs";
-const base = import.meta.env.BASE_URL;
+import { downloadVideo } from "./download-video.mjs";
 const tour = document.querySelector<HTMLElement>(".tour")!;
 const stage = document.querySelector<HTMLElement>(".stage")!;
+const film = document.querySelector<HTMLVideoElement>("#tour-film")!;
 const panels = [...document.querySelectorAll<HTMLElement>("[data-panel]")];
-const canvas = document.querySelector<HTMLCanvasElement>("#tour-canvas")!;
-const ctx = canvas.getContext("2d", { alpha: false });
 const progressBar = document.querySelector<HTMLElement>("#tour-progress")!;
 const links = [...document.querySelectorAll<HTMLAnchorElement>(".stop-nav a")];
+const loader = document.querySelector<HTMLDialogElement>("#tour-loader")!;
+const loadProgress =
+  document.querySelector<HTMLProgressElement>("#loader-progress")!;
+const loadPercent = document.querySelector<HTMLElement>("#loader-percent")!;
+const loadMessage = document.querySelector<HTMLElement>("#loader-message")!;
+const retry = document.querySelector<HTMLButtonElement>("#loader-retry")!;
+const enter = document.querySelector<HTMLButtonElement>("#loader-enter")!;
+const skip = document.querySelector<HTMLButtonElement>("#loader-skip")!;
 const motion = matchMedia("(prefers-reduced-motion: reduce)");
 const saveData = (
   navigator as Navigator & { connection?: { saveData?: boolean } }
 ).connection?.saveData;
-let enhanced = !motion.matches && !saveData && !!ctx;
-let fps = 30,
-  count = 1013,
-  duration = 33.75,
-  frameDirectory = "frames-hd";
-let currentTime = 0.6,
-  desiredTime = 0.6,
-  target = 19,
-  drawn = -1,
-  lastPanel = -1;
-let raf = 0,
-  lastTick = 0,
-  loading = 0,
-  errors = 0,
-  velocity = 0,
-  direction = 1;
+let enhanced = !motion.matches && !saveData;
 let ready = false,
   active = true,
-  initialised = false;
-const images = new Map<number, HTMLImageElement>();
-const pending = new Set<number>();
-const failed = new Set<number>();
-const clamp = (n: number, min = 0, max = 1) => Math.min(max, Math.max(min, n));
+  duration = 33.75,
+  raf = 0,
+  lastTick = 0,
+  lastPanel = -1;
+let currentTime = 0.6,
+  desiredTime = 0.6,
+  seeking = false,
+  seekStart = 0,
+  seekWatchdog = 0;
+let controller: AbortController | null = null,
+  objectURL = "",
+  slowTimer = 0,
+  timeoutTimer = 0;
+let sampleCount = 0,
+  maxSeekMs = 0;
+const clamp = (value: number) => Math.min(1, Math.max(0, value));
 function setPanel(index: number) {
-  if (index === lastPanel) return;
+  if (lastPanel === index) return;
   lastPanel = index;
   panels.forEach((panel, i) => {
     panel.classList.toggle("active", i === index);
@@ -45,112 +48,51 @@ function setPanel(index: number) {
     link.setAttribute("aria-current", String(i + 1 === index)),
   );
 }
-function draw(index: number) {
-  const img = images.get(index);
-  if (!img || !ctx || drawn === index) return;
-  const scale = Math.max(
-    canvas.width / img.naturalWidth,
-    canvas.height / img.naturalHeight,
+function presented(time: number) {
+  if (!ready) return;
+  film.dataset.frame = String(Math.round(time * 30));
+  setPanel(panelAt(time));
+}
+// Native compositing presents decoded video frames without copying Full HD
+// images through a canvas on every update.
+const hasFrameCallback = typeof film.requestVideoFrameCallback === "function";
+if (hasFrameCallback) {
+  const onFrame: VideoFrameRequestCallback = (_now, metadata) => {
+    presented(metadata.mediaTime);
+    film.requestVideoFrameCallback(onFrame);
+  };
+  film.requestVideoFrameCallback(onFrame);
+}
+film.addEventListener("seeked", () => {
+  seeking = false;
+  clearTimeout(seekWatchdog);
+  if (ready) {
+    const elapsed = performance.now() - seekStart;
+    maxSeekMs = Math.max(maxSeekMs, elapsed);
+    sampleCount++;
+    film.dataset.seekCount = String(sampleCount);
+    film.dataset.maxSeekMs = String(Math.round(maxSeekMs));
+    if (!hasFrameCallback) presented(film.currentTime);
+    schedule();
+  }
+});
+function requestFrame() {
+  if (!ready || seeking || film.seeking || !active || document.hidden) return;
+  const wanted = Math.min(
+    duration - 0.08,
+    Math.max(0, Math.round(currentTime * 30) / 30),
   );
-  const w = img.naturalWidth * scale,
-    h = img.naturalHeight * scale;
-  // A constant crop avoids artificial sideways jumps between rooms.
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(
-    img,
-    (canvas.width - w) * 0.56,
-    (canvas.height - h) * 0.5,
-    w,
-    h,
-  );
-  canvas.style.opacity = "1";
-  canvas.dataset.frame = String(index);
-  drawn = index;
-  // Copy follows the actual visible footage, even if the network is slower.
-  setPanel(panelAt((index - 1) / fps));
-}
-function renderNearest() {
-  if (images.has(target)) {
-    draw(target);
-    return;
-  }
-  let nearest = -1,
-    dist = Infinity;
-  for (const index of images.keys()) {
-    // A late network response must not briefly rewind forward motion.
-    if (
-      drawn >= 0 &&
-      Math.abs(velocity) > 0.15 &&
-      (index - drawn) * direction < 0
-    )
-      continue;
-    if (Math.abs(index - target) < dist) {
-      nearest = index;
-      dist = Math.abs(index - target);
-    }
-  }
-  if (nearest >= 0 && (drawn < 0 || dist <= 8)) draw(nearest);
-}
-function prune() {
-  const limit = innerWidth < 700 ? 14 : 20;
-  while (images.size > limit) {
-    let far = -1,
-      dist = -1;
-    for (const i of images.keys()) {
-      const d = Math.abs(i - target) + ((i - target) * direction < 0 ? 3 : 0);
-      if (d > dist) {
-        far = i;
-        dist = d;
-      }
-    }
-    images.delete(far);
-  }
-}
-function pump() {
-  if (!enhanced || !ready || !active || document.hidden) return;
-  const stride = clamp(Math.round((Math.abs(velocity) * fps) / 60), 1, 10);
-  const candidates = [target, target + direction, target - direction];
-  for (let i = 1; i <= 8; i++) candidates.push(target + direction * stride * i);
-  for (let i = 2; i <= 3; i++) candidates.push(target - direction * i);
-  for (const index of candidates) {
-    if (loading >= 5) break;
-    if (
-      index < 1 ||
-      index > count ||
-      images.has(index) ||
-      pending.has(index) ||
-      failed.has(index)
-    )
-      continue;
-    loading++;
-    pending.add(index);
-    const img = new Image();
-    img.decoding = "async";
-    img.onload = async () => {
-      try {
-        await img.decode();
-      } catch {
-        /* onload image remains drawable */
-      }
-      pending.delete(index);
-      loading--;
-      if (!enhanced) return;
-      images.set(index, img);
-      prune();
-      schedule();
-      pump();
-    };
-    img.onerror = () => {
-      pending.delete(index);
-      failed.add(index);
-      loading--;
-      errors++;
-      if (errors > 16 && images.size === 0) disable();
-      else pump();
-    };
-    img.src = `${base}media/${frameDirectory}/${String(index).padStart(4, "0")}.webp`;
-  }
+  if (Math.abs(film.currentTime - wanted) < 1 / 60) return;
+  // Coalesce wheel events: at most one seek is in flight, always followed by
+  // the newest target. Never queue outdated positions or start network loads.
+  seeking = true;
+  seekStart = performance.now();
+  film.currentTime = wanted;
+  seekWatchdog = window.setTimeout(() => {
+    seeking = false;
+    if (!film.seeking) schedule();
+    else disable();
+  }, 4000);
 }
 function readScroll() {
   if (!enhanced) return;
@@ -160,81 +102,203 @@ function readScroll() {
     -rect.top / Math.max(1, tour.offsetHeight - stage.clientHeight),
   );
   desiredTime = timeAt(p, duration);
-  if (!initialised) {
-    currentTime = desiredTime;
-    initialised = true;
-  }
   progressBar.style.transform = `scaleX(${p})`;
   schedule();
 }
 function update(now: number) {
   raf = 0;
-  if (!enhanced || !ready || !active || document.hidden) {
+  if (!ready || !active || document.hidden) {
     lastTick = 0;
     return;
   }
-  const dt = lastTick ? Math.min((now - lastTick) / 1000, 0.05) : 1 / 60;
+  const dt = lastTick ? Math.min(0.05, (now - lastTick) / 1000) : 1 / 60;
   lastTick = now;
-  const previous = currentTime;
   currentTime = follow(currentTime, desiredTime, dt);
   if (Math.abs(currentTime - desiredTime) < 0.003) currentTime = desiredTime;
-  velocity = (currentTime - previous) / Math.max(dt, 0.001);
-  if (Math.abs(velocity) > 0.01) direction = velocity > 0 ? 1 : -1;
-  target = clamp(Math.round(currentTime * fps) + 1, 1, count);
-  renderNearest();
-  pump();
+  requestFrame();
   if (currentTime !== desiredTime) schedule();
   else lastTick = 0;
 }
 function schedule() {
-  if (!raf) raf = requestAnimationFrame(update);
+  if (enhanced && !raf) raf = requestAnimationFrame(update);
 }
-function resize() {
-  if (!enhanced) return;
-  // Never request a sharper backing store than the real Full HD source can supply.
-  const sourceScale = Math.max(
-    stage.clientWidth / 1920,
-    stage.clientHeight / 1080,
-  );
-  const ratio = Math.min(devicePixelRatio || 1, 2, 1 / sourceScale);
-  canvas.width = Math.round(stage.clientWidth * ratio);
-  canvas.height = Math.round(stage.clientHeight * ratio);
-  drawn = -1;
+function setProgress(value: number, message?: string) {
+  const rounded = Math.max(0, Math.min(100, Math.floor(value)));
+  loadProgress.value = rounded;
+  loadPercent.textContent = `${rounded}%`;
+  if (message && loadMessage.textContent !== message)
+    loadMessage.textContent = message;
+}
+function waitForMedia(event: string, signal: AbortSignal, ms = 15000) {
+  return new Promise<void>((resolve, reject) => {
+    const clean = () => {
+      clearTimeout(timer);
+      film.removeEventListener(event, done);
+      film.removeEventListener("error", fail);
+      signal.removeEventListener("abort", abort);
+    };
+    const done = () => {
+      clean();
+      resolve();
+    };
+    const fail = () => {
+      clean();
+      reject(new Error("No se pudo preparar el vídeo"));
+    };
+    const abort = () => {
+      clean();
+      reject(signal.reason);
+    };
+    const timer = setTimeout(fail, ms);
+    film.addEventListener(event, done, { once: true });
+    film.addEventListener("error", fail, { once: true });
+    signal.addEventListener("abort", abort, { once: true });
+    if (signal.aborted) abort();
+  });
+}
+async function prepareFirstFrame(signal: AbortSignal) {
   readScroll();
+  currentTime = desiredTime;
+  const first = Math.round(currentTime * 30) / 30;
+  if (Math.abs(film.currentTime - first) > 1 / 60) {
+    const loaded = waitForMedia("seeked", signal, 7000);
+    film.currentTime = first;
+    await loaded;
+  }
+  if (signal.aborted || !enhanced) return;
+  clearTimeout(slowTimer);
+  clearTimeout(timeoutTimer);
+  setProgress(100, "Recorrido listo");
+  film.dataset.loadState = "ready";
+  film.classList.add("is-ready");
+  ready = true;
+  setPanel(panelAt(film.currentTime));
+  document.documentElement.classList.remove("tour-loading");
+  loader.close();
+  readScroll();
+}
+async function loadTour() {
+  controller?.abort();
+  controller = new AbortController();
+  const signal = controller.signal;
+  ready = false;
+  retry.hidden = true;
+  enter.hidden = true;
+  setProgress(0, "Preparando el recorrido…");
+  film.dataset.loadState = "loading";
+  document.documentElement.classList.add("tour-loading");
+  if (!loader.open) loader.showModal();
+  clearTimeout(slowTimer);
+  clearTimeout(timeoutTimer);
+  slowTimer = window.setTimeout(() => {
+    loadMessage.textContent =
+      "Seguimos preparando la visita. Puedes ver la ficha mientras tanto.";
+  }, 15000);
+  timeoutTimer = window.setTimeout(
+    () => controller?.abort(new Error("La conexión está tardando demasiado.")),
+    120000,
+  );
+  const mobile = innerWidth < 800 && innerHeight > innerWidth;
+  film.dataset.profile = mobile ? "mobile" : "desktop";
+  const url = (mobile ? film.dataset.mobile : film.dataset.desktop)!;
+  const expectedBytes = Number(
+    mobile ? film.dataset.mobileBytes : film.dataset.desktopBytes,
+  );
+  try {
+    const blob = await downloadVideo(url, {
+      signal,
+      expectedBytes,
+      onProgress: (received: number, total: number) => {
+        setProgress(total ? (received / total) * 94 : 0);
+      },
+    });
+    if (signal.aborted) return;
+    clearTimeout(slowTimer);
+    setProgress(96, "Preparando la imagen…");
+    if (objectURL) URL.revokeObjectURL(objectURL);
+    objectURL = URL.createObjectURL(blob);
+    const loaded = waitForMedia("loadeddata", signal);
+    film.preload = "auto";
+    film.src = objectURL;
+    film.load();
+    await loaded;
+    duration = film.duration;
+    if (!Number.isFinite(duration) || duration < 1)
+      throw Error("Vídeo no válido");
+    try {
+      await prepareFirstFrame(signal);
+    } catch (error) {
+      if (signal.aborted) throw error;
+      // Some iOS versions require a user gesture before seeking a paused video.
+      setProgress(98, "El recorrido está descargado. Pulsa para entrar.");
+      enter.hidden = false;
+      clearTimeout(timeoutTimer);
+    }
+  } catch (error) {
+    clearTimeout(slowTimer);
+    clearTimeout(timeoutTimer);
+    if (!enhanced || (signal.aborted && controller?.signal !== signal)) return;
+    film.dataset.loadState = "error";
+    loadMessage.textContent =
+      "No hemos podido preparar el recorrido. Puedes reintentarlo o ver la vivienda sin animación.";
+    retry.hidden = false;
+  }
 }
 function disable() {
   enhanced = false;
-  document.documentElement.classList.remove("enhanced");
+  ready = false;
+  controller?.abort();
+  film.pause();
+  clearTimeout(slowTimer);
+  clearTimeout(timeoutTimer);
+  clearTimeout(seekWatchdog);
+  if (raf) cancelAnimationFrame(raf);
+  raf = 0;
+  document.documentElement.classList.remove("enhanced", "tour-loading");
   panels.forEach((p) => {
     p.inert = false;
     p.classList.remove("active");
   });
-  canvas.style.opacity = "0";
-  images.clear();
-  if (raf) cancelAnimationFrame(raf);
-  raf = 0;
+  film.classList.remove("is-ready");
+  film.dataset.loadState = "static";
+  film.removeAttribute("src");
+  film.load();
+  if (objectURL) {
+    URL.revokeObjectURL(objectURL);
+    objectURL = "";
+  }
+  if (loader.open) loader.close();
 }
+skip.addEventListener("click", () => {
+  disable();
+  document.querySelector("#detalles")?.scrollIntoView({ behavior: "instant" });
+});
+loader.addEventListener("cancel", (e) => {
+  e.preventDefault();
+  disable();
+});
+retry.addEventListener("click", () => void loadTour());
+enter.addEventListener("click", async () => {
+  enter.disabled = true;
+  try {
+    await film.play();
+    film.pause();
+    await prepareFirstFrame(controller!.signal);
+  } catch {
+    loadMessage.textContent =
+      "No se puede reproducir el recorrido en este navegador.";
+    retry.hidden = false;
+  } finally {
+    enter.disabled = false;
+  }
+});
 if (enhanced) {
   document.documentElement.classList.add("enhanced");
-  canvas.style.opacity = "0";
   setPanel(0);
-  resize();
-  fetch(`${base}media/manifest.json`, { cache: "no-cache" })
-    .then((r) => {
-      if (!r.ok) throw Error();
-      return r.json();
-    })
-    .then((m) => {
-      fps = m.fps;
-      count = m.count;
-      duration = count / fps;
-      frameDirectory = m.directory;
-      ready = true;
-      readScroll();
-    })
-    .catch(disable);
+  readScroll();
+  void loadTour();
   addEventListener("scroll", readScroll, { passive: true });
-  addEventListener("resize", resize);
+  addEventListener("resize", readScroll);
   document.addEventListener("visibilitychange", () => {
     lastTick = 0;
     readScroll();
@@ -243,11 +307,11 @@ if (enhanced) {
     if (motion.matches) disable();
   });
 }
-
 document.querySelectorAll<HTMLAnchorElement>("[data-jump]").forEach((a) =>
   a.addEventListener("click", (e) => {
     if (!enhanced) return;
     e.preventDefault();
+    if (!ready) return;
     const y =
       tour.getBoundingClientRect().top +
       scrollY +
@@ -255,6 +319,7 @@ document.querySelectorAll<HTMLAnchorElement>("[data-jump]").forEach((a) =>
     scrollTo({ top: y, behavior: "smooth" });
   }),
 );
+
 // Native dialogs provide focus trapping, Escape handling and a keyboard-friendly close.
 const videoDialog = document.querySelector<HTMLDialogElement>("#video-dialog")!;
 const video = videoDialog.querySelector("video")!;
@@ -263,7 +328,11 @@ let opener: HTMLElement | null = null;
 document.querySelectorAll<HTMLButtonElement>("[data-video]").forEach((button) =>
   button.addEventListener("click", () => {
     opener = button;
-    if (!video.src) video.src = video.dataset.src!;
+    if (!video.src)
+      video.src =
+        ready && objectURL && film.dataset.profile === "desktop"
+          ? objectURL
+          : video.dataset.src!;
     videoDialog.showModal();
     video.play().catch(() => {});
   }),
@@ -274,27 +343,29 @@ document.querySelectorAll<HTMLButtonElement>("[data-visit]").forEach((button) =>
     visitDialog.showModal();
   }),
 );
-document.querySelectorAll<HTMLDialogElement>("dialog").forEach((dialog) => {
-  dialog
-    .querySelector("[data-close]")!
-    .addEventListener("click", () => dialog.close());
-  dialog.addEventListener("click", (e) => {
-    if (e.target === dialog) {
-      const r = dialog.getBoundingClientRect();
-      if (
-        e.clientX < r.left ||
-        e.clientX > r.right ||
-        e.clientY < r.top ||
-        e.clientY > r.bottom
-      )
-        dialog.close();
-    }
+document
+  .querySelectorAll<HTMLDialogElement>("#video-dialog, #visit-dialog")
+  .forEach((dialog) => {
+    dialog
+      .querySelector("[data-close]")!
+      .addEventListener("click", () => dialog.close());
+    dialog.addEventListener("click", (e) => {
+      if (e.target === dialog) {
+        const r = dialog.getBoundingClientRect();
+        if (
+          e.clientX < r.left ||
+          e.clientX > r.right ||
+          e.clientY < r.top ||
+          e.clientY > r.bottom
+        )
+          dialog.close();
+      }
+    });
+    dialog.addEventListener("close", () => {
+      video.pause();
+      opener?.focus({ preventScroll: true });
+    });
   });
-  dialog.addEventListener("close", () => {
-    video.pause();
-    opener?.focus({ preventScroll: true });
-  });
-});
 const dateInput = document.querySelector<HTMLInputElement>("#visit-date")!;
 const today = new Date();
 dateInput.min = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;

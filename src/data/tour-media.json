@@ -1,0 +1,14 @@
+{
+  "desktop": {
+    "width": 1920,
+    "file": "tour-desktop-v3.mp4",
+    "height": 1080,
+    "bytes": 37825640
+  },
+  "mobile": {
+    "width": 720,
+    "file": "tour-mobile-v3.mp4",
+    "height": 1080,
+    "bytes": 17490842
+  }
+}

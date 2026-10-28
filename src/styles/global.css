@@ -1189,3 +1189,135 @@ body:has(dialog[open]) {
 .enhanced .stage-poster {
   height: 100%;
 }
+.tour-film {
+  display: none;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 56% 50%;
+  opacity: 0;
+}
+.enhanced .tour-film {
+  display: block;
+}
+.tour-film.is-ready {
+  opacity: 1;
+}
+.tour-film[data-profile="mobile"] {
+  object-position: 50% 50%;
+}
+html.tour-loading {
+  overflow: hidden;
+}
+.tour-loader {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  background: var(--cream);
+  color: var(--ink);
+  box-shadow: none;
+}
+.tour-loader::backdrop {
+  background: var(--cream);
+  backdrop-filter: none;
+}
+.loader-inner {
+  min-height: 100%;
+  padding: 40px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  text-align: center;
+}
+.loader-brand {
+  font:
+    26px Georgia,
+    serif;
+  letter-spacing: -1px;
+  margin-bottom: 45px;
+}
+.loader-house {
+  width: 56px;
+  height: 64px;
+  margin-bottom: 24px;
+  color: #6b7d5f;
+}
+.tour-loader h2 {
+  font-size: clamp(31px, 4vw, 50px);
+  margin: 18px 0 40px;
+  line-height: 1.12;
+}
+.loader-progress-label {
+  width: min(360px, 100%);
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  font-size: 11px;
+  text-align: left;
+  line-height: 1.6;
+}
+#loader-percent {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tour-loader progress {
+  width: min(360px, 100%);
+  height: 3px;
+  border: 0;
+  border-radius: 0;
+  background: #dce0d2;
+  margin: 14px 0 20px;
+  appearance: none;
+}
+.tour-loader progress::-webkit-progress-bar {
+  background: #dce0d2;
+}
+.tour-loader progress::-webkit-progress-value {
+  background: #536e46;
+  transition: width 0.15s linear;
+}
+.tour-loader progress::-moz-progress-bar {
+  background: #536e46;
+}
+.loader-detail {
+  font-size: 11px;
+  line-height: 1.8;
+  max-width: 310px;
+  color: var(--muted);
+}
+.loader-skip {
+  background: none;
+  padding: 13px 0;
+  margin-top: 25px;
+  font-size: 11px;
+  border-bottom: 1px solid #c0c9b5;
+}
+.loader-skip span {
+  margin-left: 12px;
+}
+.tour-loader .button {
+  margin-top: 24px;
+}
+.tour-loader [hidden] {
+  display: none;
+}
+@media (max-height: 650px) {
+  .loader-brand {
+    margin-bottom: 20px;
+  }
+  .loader-house {
+    height: 40px;
+    margin-bottom: 10px;
+  }
+  .tour-loader h2 {
+    margin: 12px 0 24px;
+  }
+}
